@@ -26,4 +26,17 @@ function model = trainWakeWordModel(features, labels)
     template = templateSVM('KernelFunction','gaussian');
     model = fitcecoc(features, labels, 'Learners', template);
 end
+
 %% now we will test github ccollaboration
+=======
+
+%%0605just test
+% Read the entire file into a single string
+%data = fscanf(fileID, '%c');
+
+% Close the file
+%fclose(fileID);
+
+% Split the data string into cells based on spaces
+%dataCells = strsplit(data);
+
