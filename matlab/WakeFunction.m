@@ -20,3 +20,9 @@ function [features, labels] = extractFeatures(audioFiles, fs, labels)
         labelsList = [labelsList; repmat(labels(i), size(audioFeatures, 1), 1)];
     end
 end
+%% 训练模型
+function model = trainWakeWordModel(features, labels)
+    % 使用高斯核的支持向量机
+    template = templateSVM('KernelFunction','gaussian');
+    model = fitcecoc(features, labels, 'Learners', template);
+end
