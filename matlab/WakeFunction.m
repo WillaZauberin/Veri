@@ -26,4 +26,4 @@ function model = trainWakeWordModel(features, labels)
     template = templateSVM('KernelFunction','gaussian');
     model = fitcecoc(features, labels, 'Learners', template);
 end
-ºÃµÄjy
+%% now we will test github ccollaboration
