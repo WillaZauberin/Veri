@@ -27,8 +27,7 @@ function model = trainWakeWordModel(features, labels)
     model = fitcecoc(features, labels, 'Learners', template);
 end
 
-%% now we will test github ccollaboration
-=======
+%% now we will test github collaboration
 
 %%0605just test
 % Read the entire file into a single string
@@ -39,4 +38,6 @@ end
 
 % Split the data string into cells based on spaces
 %dataCells = strsplit(data);
+
+data=[1,2,3,4,5,6,7,8,9,10];
 

@@ -1,5 +1,5 @@
 %% 读取原始声音数据hello
-[audioData, fs] = audioread('E:\XinYuan\VeriHealthi_QEMU_SDK.202405_preliminary\VeriHealthi_QEMU_SDK.202405_preliminary\VeriHealthi_Speech_Command_Dataset\data\pc\0-1.wav');
+[audioData, fs] = audioread('data\pc\0-1.wav');
 
 %% 语音唤醒关键词检测
 function isWakeWord = detectWakeWord(audioData, fs)

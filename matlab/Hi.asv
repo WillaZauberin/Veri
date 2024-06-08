@@ -1,0 +1,34 @@
+clear
+clc
+% 定义音频文件所在的目录
+audioFolder = 'E:\XinYuan\USTC_AAA\pc';
+audioFiles = dir(fullfile(audioFolder, '*.wav'));  % 获取所有的 .wav 文件
+
+% 初始化用于存储文件名和标签的变量
+fileNames = {audioFiles.name}';
+labels = cell(length(fileNames), 1);
+
+% 循环处理每个文件，分配标签
+for i = 1:length(audioFiles)
+    fileName = audioFiles(i).name;
+    % 根据文件名前缀分配标签
+    if contains(fileName, '-7')
+        labels{i} = 'measure_temperature';  % 测体温
+    elseif contains(fileName, '-8')
+        labels{i} = 'measure_blood_pressure';  % 测血压
+    elseif contains(fileName, '-9')
+        labels{i} = 'measure_blood_sugar';  % 测血糖
+    elseif contains(fileName, '-6')
+        labels{i} = 'wake_word';  % 唤醒词
+    else
+        labels{i} = 'invalid_command';  % 无效命令
+    end
+end
+
+% 创建一个表格来保存文件名和标签
+labelTable = table(fileNames, labels, 'VariableNames', {'FileName', 'Label'});
+
+% 保存这个表格到 CSV 文件
+csvFileName = 'audio_labels.csv';
+writetable(labelTable, fullfile(audioFolder, csvFileName));
+%fprintf('Label data saved to %s\n', fullfile(audioFolder, csvFileName));
