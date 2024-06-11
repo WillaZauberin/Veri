@@ -3,7 +3,7 @@ clc
 % 定义音频文件所在的目录
 audioFolder = 'E:\XinYuan\USTC_AAA\pc';
 audioFiles = dir(fullfile(audioFolder, '*.wav'));  % 获取所有的 .wav 文件
-
+%% 给音频打标签
 % 初始化用于存储文件名和标签的变量
 fileNames = {audioFiles.name}';
 labels = cell(length(fileNames), 1);
@@ -24,11 +24,28 @@ for i = 1:length(audioFiles)
         labels{i} = 'invalid_command';  % 无效命令
     end
 end
+%% 训练
+% 预设
+% 预设
+numCoeffs = 13;  % MFCC系数的数量
+audioFiles = dir('E:\XinYuan\USTC_AAA\pc');
+features = [];
+labels = [];
 
-% 创建一个表格来保存文件名和标签
-labelTable = table(fileNames, labels, 'VariableNames', {'FileName', 'Label'});
+for i = 1:length(audioFiles)
+    % 读取音频文件
+    [audioIn, fs] = audioread(fullfile(audioFiles(i).folder, audioFiles(i).name));
+    
+    % 提取MFCC，确保参数名称正确
+    coeffs = mfcc(audioIn, fs, 'NumCoeffs', numCoeffs);
+    
+    % 平均MFCC以得到单一特征向量
+    avgCoeffs = mean(coeffs, 1);
+    
+    % 存储特征和标签
+    features = [features; avgCoeffs];
+    labels = [labels; extractBefore(audioFiles(i).name, '_')];  % 假设标签在"_"前
+end
 
-% 保存这个表格到 CSV 文件
-csvFileName = 'audio_labels.csv';
-writetable(labelTable, fullfile(audioFolder, csvFileName));
-%fprintf('Label data saved to %s\n', fullfile(audioFolder, csvFileName));
+% 训练SVM分类器
+svmModel = fitcecoc(features, labels);
