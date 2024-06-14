@@ -1,3 +1,4 @@
+
 clc; close all; clear all;
 
 %% 步骤 1: 读取和预处理数据
@@ -104,22 +105,23 @@ end
 
 % 移除空cell元素
 features = features(~cellfun('isempty', features));
-
 % 将cell数组转换为矩阵，用于后续处理
 featuresMatrix = vertcat(features{:});
+featuresMatrixAdjusted = permute(featuresMatrix, [3, 2, 1]);
 
-
-
+% 检查调整后的 featuresMatrixAdjusted 的形状
+disp(size(featuresMatrixAdjusted));  % 应该显示 [1, 39, N]
+% 初始化元胞数组，其中 N 是样本数
+N = size(featuresMatrixAdjusted, 3);
 %% 步骤 3: 网络训练
 % 网络定义
 layers = [
-    sequenceInputLayer(size(features, 2))
+    sequenceInputLayer(size(featureMean, 1))
     bilstmLayer(100, 'OutputMode', 'last')
     fullyConnectedLayer(6) % 包括所有正样本和负样本的类别
     softmaxLayer
     classificationLayer
 ];
-
 % 训练选项
 options = trainingOptions('adam', ...
     'MaxEpochs',30, ...
@@ -132,6 +134,6 @@ options = trainingOptions('adam', ...
 Y = categorical(labels);
 
 % 训练网络
-net = trainNetwork(features, Y, layers, options);
+net = trainNetwork(features,Y, layers, options);
 save('trainedModel.mat', 'net');
 disp(net);

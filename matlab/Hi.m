@@ -1,46 +1,147 @@
-clear
-clc
-% 定义音频文件所在的目录
-%audioFolder = 'E:\XinYuan\USTC_AAA\Labeled';
-%audioFiles = dir(fullfile(audioFolder, '*.wav'));  % 获取所有的 .wav 文件
-[audio, fs] = audioread('E:\XinYuan\USTC_AAA\data_divided\pc\Train\Hi\0-6.wav');  % 读取音频文件
-coeffs = mfcc(audio, fs, 'LogEnergy', 'Replace');  % 提取MFCC
-% 假设labels.txt中每行格式为：开始时间 结束时间 标签
-opts = detectImportOptions('E:\XinYuan\USTC_AAA\data_divided\pc\Train\Hi\0-6.txt', 'Delimiter', ' ');
-labelsData = readtable('E:\XinYuan\USTC_AAA\data_divided\pc\Train\Hi\0-6.txt', opts);
+clc; close all; clear all;
 
-% 为每个标签的时间段计算对应的MFCC
-for i = 1:height(labelsData)
-    startTime = labelsData(i);
-    endTime = labelsData.endTime(i);
-    startIndex = round(startTime * fs);
-    endIndex = round(endTime * fs);
-    segment = audio(startIndex:endIndex);
-    segmentCoeffs = mfcc(segment, fs, 'LogEnergy', 'Replace');
+%% 步骤 1: 读取和预处理数据
+% 路径设置
+wavPath = 'E:\XinYuan\USTC_AAA\pc';
+txtPath = 'E:\XinYuan\USTC_AAA\predict';
 
-    %% 初始化包含特征和标签的表
-featureCols = {'Feature1', 'Feature2', 'Feature3', 'Feature4', 'Feature5', ...
-               'Feature6', 'Feature7', 'Feature8', 'Feature9', 'Feature10', ...
-               'Feature11', 'Feature12', 'Feature13'};
-featureTable = table([], [], [], [], [], [], [], [], [], [], [], [], [], ...
-    'VariableNames', [featureCols, {'Label'}]);
-for i = 1:numFrames
-    segment = audio(startIndex:endIndex); % 假设这些索引已正确计算
-    segmentCoeffs = mfcc(segment, fs); % 计算MFCC特征
+% 获取所有wav文件
+wavFiles = dir(fullfile(wavPath, '*.wav'));
 
-    % 假设你有一个函数来确定这一帧的标签
-    label = determineLabel(segment); % 这应是一个自定义函数
+% 初始化数据存储
+data = {};
+labels = {};
 
-    % 将特征和标签添加到表中
-    newRow = table(segmentCoeffs(1), segmentCoeffs(2), segmentCoeffs(3), segmentCoeffs(4), segmentCoeffs(5), ...
-                   segmentCoeffs(6), segmentCoeffs(7), segmentCoeffs(8), segmentCoeffs(9), segmentCoeffs(10), ...
-                   segmentCoeffs(11), segmentCoeffs(12), segmentCoeffs(13), ...
-                   label, ...
-                   'VariableNames', [featureCols, {'Label'}]);
+% 正样本和负样本的标识符映射
+labelMap = containers.Map('KeyType', 'double', 'ValueType', 'char');
+labelMap(1) = 'VeriSilicon'; % VeriSilicon
+labelMap(3) = '大 V 大 V'; % 大 V 大 V
+labelMap(6) = 'Hi 芯原'; % Hi 芯原
+labelMap(7) = '测体温'; % 测体温
+labelMap(8) = '测血压'; % 测血压
+labelMap(9) = '测血糖'; % 测血糖
 
-    featureTable = [featureTable; newRow];
+% 处理25个文件
+for k = 1:25
+    wavFileName = wavFiles(k).name;
+    wavFilePath = fullfile(wavPath, wavFileName);
+    txtFileName = replace(wavFileName, '.wav', '.txt');
+    txtFilePath = fullfile(txtPath, txtFileName);
+    
+    % 读取音频文件
+    [audioData, fs] = audioread(wavFilePath);
+    
+    % 解析文件名以确定标签
+    labelPartStr = extractBefore(extractAfter(wavFileName, '-'), '.');
+    labelPart = str2double(labelPartStr);
+    
+    % 检查对应的txt文件是否存在
+    if exist(txtFilePath, 'file')
+        frameIndices = load(txtFilePath);
+    else
+        disp(['No corresponding txt file for ', wavFileName]);
+        continue;
+    end
+    
+    % 提取关键词音频段
+    for j = 1:size(frameIndices, 1)
+        startIndex = max(1, frameIndices(j, 1));
+        endIndex = min(length(audioData), frameIndices(j, 2));
+        
+        if startIndex >= endIndex
+            disp(['Invalid or out-of-bound frame indices for ', wavFileName, ' at index ', num2str(j)]);
+            continue;
+        end
+        
+        keywordClip = audioData(startIndex:endIndex);
+        
+        % 根据标签分配标识符
+        if labelMap.isKey(labelPart)
+            label = labelMap(labelPart);
+        else
+            continue; % 如果标签不在列表中，跳过此文件
+        end
+        
+        % 存储数据和标签
+        data{end+1} = keywordClip;
+        labels{end+1} = label;
+    end
 end
-save('featureData.mat', 'featureTable');
-writetable(featureTable, 'featureData.csv');
 
+%% 步骤 2: 特征提取
+if isempty(data)
+    error('No valid audio clips were extracted.');
 end
+
+windowLength = 512;
+overlapLength = 384;
+hopLength = 256; % 可以根据需要调整
+afe = audioFeatureExtractor('SampleRate', fs, ...
+    'Window', hann(windowLength, 'periodic'), 'OverlapLength', overlapLength, ...
+    'mfcc', true, 'mfccDelta', true, 'mfccDeltaDelta', true);
+
+% 初始化特征存储，使用cell数组来处理不同长度的特征
+features = cell(length(data), 1);
+
+for i = 1:length(data)
+    audioIn = data{i};
+    try
+        mfccs = extract(afe, audioIn');
+        if isempty(mfccs)
+            disp(['MFCC extraction failed for clip ', num2str(i)]);
+            continue;
+        end
+        % 处理无穷大或NaN值
+        mfccs(~isfinite(mfccs)) = 0;
+        % 计算所有MFCC向量的均值，确保特征长度一致
+        featureMean = mean(mfccs, 1); % 计算每列的均值
+        features{i} = featureMean;
+    catch ME
+        disp(['Error extracting MFCC for clip ', num2str(i), ': ', ME.message]);
+    end
+end
+% 移除空cell元素
+features = features(~cellfun('isempty', features));
+
+% 将cell数组转换为矩阵，用于后续处理
+featuresMatrix = vertcat(features{:});
+%%
+
+% 调整为 [1, 特征维度, 样本数]
+featuresMatrixAdjusted = permute(featuresMatrix, [3, 2, 1]);
+
+% 检查调整后的 featuresMatrixAdjusted 的形状
+disp(size(featuresMatrixAdjusted));  % 应该显示 [1, 39, N]
+% 初始化元胞数组，其中 N 是样本数
+N = size(featuresMatrixAdjusted, 3);
+featuresCell = cell(N, 1);
+
+% 填充元胞数组，每个单元格一个 1x39 的矩阵
+for i = 1:N
+    featuresCell{i} = squeeze(featuresMatrixAdjusted(1, :, i));
+end
+% 重新定义网络
+inputFeatureDim = size(featuresMatrix, 2);  % 特征维度，应为39
+layers = [
+    sequenceInputLayer(39)
+    bilstmLayer(100, 'OutputMode', 'last')
+    fullyConnectedLayer(6)
+    softmaxLayer
+    classificationLayer
+];
+
+% 训练选项
+options = trainingOptions('adam', ...
+    'MaxEpochs', 30, ...
+    'MiniBatchSize', 10, ...
+    'Shuffle', 'every-epoch', ...
+    'Verbose', true, ...
+    'Plots', 'training-progress');
+Y = categorical(labels);
+disp(size(featuresMatrixAdjusted));
+% 训练网络
+net = trainNetwork(featuresCell, Y, layers, options);
+save('trainedModel.mat', 'net');
+disp(net);
+
+
